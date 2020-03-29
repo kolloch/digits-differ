@@ -25,14 +25,17 @@ fn main() {
     // The number of leading zeros to print before the number.
     let mut leading_zeroes = N_DIGITS;
     // The next number at which we need to remove one zero.
-    let mut next_zero = 1;
+    let mut next_zero = 0;
 
     // Get the next free number.
-    while let Some(next_free) = too_similar.iter_unset_bits((current+1)..).next() {
+    while let Some(next_free) = too_similar.iter_unset_bits(current..).next() {
         count += 1;
         current = next_free as Num;
 
         while next_zero <= current {
+            if next_zero == 0 {
+                next_zero = 1;
+            }
             leading_zeroes -= 1;
             next_zero *= BASE;
         }
