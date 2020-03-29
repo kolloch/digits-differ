@@ -22,11 +22,28 @@ fn main() {
     let mut current: Num = 0;
     let mut count: usize = 0;
 
+    // The number of leading zeros to print before the number.
+    let mut leading_zeroes = N_DIGITS;
+    // The next number at which we need to remove one zero.
+    let mut next_zero = 1;
+
     // Get the next free number.
     while let Some(next_free) = too_similar.iter_unset_bits((current+1)..).next() {
         count += 1;
         current = next_free as Num;
-        writeln!(&mut out, "{:0digits$}", current, digits = N_DIGITS-1).expect("write failed");
+
+        while next_zero <= current {
+            leading_zeroes -= 1;
+            next_zero *= BASE;
+        }
+
+        for _ in 0..leading_zeroes {
+            out.write_all(b"0").expect("write failed");
+        }
+
+        itoa::write(&mut out, current).expect("itoa failed");
+        out.write_all(b"\n").expect("write failed");
+
 
         // Mark all numbers which differ only by one digit as unsuitable.
 
