@@ -40,6 +40,16 @@ fn write_numbers<W: WriteNum>(write_num: &mut W, out: &mut impl Write, n_digits:
         - 1;
     assert!(max <= usize::max_value() as Num, "usize cannot address max");
 
+    let powers: Vec<Num> = {
+        let mut powers = Vec::with_capacity(n_digits);
+        let mut power = 1;
+        for _ in 0..n_digits {
+            powers.push(power);
+            power *= BASE;
+        }
+        powers
+    };
+
     // A bit set to keep track of all numbers which are too similar to already
     // chosen numbers (e.g. only differ in one digit).
     // We start out with no numbers being too close.
@@ -57,10 +67,9 @@ fn write_numbers<W: WriteNum>(write_num: &mut W, out: &mut impl Write, n_digits:
 
         // Mark all numbers which differ only by one digit as unsuitable.
 
-        // digit_factor = 1 for the first digit, 10 for the second, 100 for the third...
-        let mut digit_factor: Num = 1;
         // Iterate over all digit positions.
-        for _digit_pos in 0..n_digits {
+        // digit_factor = 1 for the first digit, 10 for the second, 100 for the third...
+        for digit_factor in &powers {
             // The current digit at the selected position.
             //
             // Example: current = 3456, _digit_pos = 2, digit_factor = 100
@@ -87,7 +96,6 @@ fn write_numbers<W: WriteNum>(write_num: &mut W, out: &mut impl Write, n_digits:
                 let with_changed_digit: Num = current_level + change_to_digit * digit_factor;
                 too_similar.set(with_changed_digit as usize, true);
             }
-            digit_factor *= BASE;
         }
     }
     count
