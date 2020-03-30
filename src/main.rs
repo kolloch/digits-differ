@@ -22,7 +22,8 @@ fn main() {
     // Buffering makes this max faster.
     let mut out = std::io::BufWriter::with_capacity(1 * 1024 * 1024 /* 1 MB */, out);
 
-    let count = write_numbers(&mut out, N_DIGITS);
+    let mut write_num = WriteNumReverse::new(N_DIGITS);
+    let count = write_numbers(&mut write_num, &mut out, N_DIGITS);
 
     out.flush().expect("while flushing file writes");
     eprintln!(
@@ -32,7 +33,7 @@ fn main() {
     eprintln!("Total count: {}", count);
 }
 
-fn write_numbers(out: &mut impl Write, n_digits: usize) -> usize {
+fn write_numbers<W: WriteNum>(write_num: &mut W, out: &mut impl Write, n_digits: usize) -> usize {
     let max = BASE
         .checked_pow(n_digits as u32)
         .expect("Num type too small")
@@ -52,7 +53,7 @@ fn write_numbers(out: &mut impl Write, n_digits: usize) -> usize {
         count += 1;
         current = next_free as Num;
 
-        writeln!(out, "{:0width$}", current, width = n_digits).expect("write");
+        write_num.write(out, n_digits, current);
 
         // Mark all numbers which differ only by one digit as unsuitable.
 
@@ -96,19 +97,22 @@ fn write_numbers(out: &mut impl Write, n_digits: usize) -> usize {
 
 #[test]
 fn test_two_digits() {
+    let mut write_num = WriteNumEasy::default();
     assert_eq!(
-        generate_number_string(2),
-        numbers_as_string(2, &vec![00, 11, 22, 33, 44, 55, 66, 77, 88, 99])
+        generate_number_string(&mut write_num, 2),
+        numbers_as_string(&mut write_num, 2, &vec![00, 11, 22, 33, 44, 55, 66, 77, 88, 99])
     )
 }
 
 #[test]
 fn test_three_digits() {
+    let mut write_num = WriteNumEasy::default();
     let start = numbers_as_string(
+        &mut write_num,
         3,
         &vec![000, 011, 022, 033, 044, 055, 066, 077, 088, 099, 101],
     );
-    let generated = generate_number_string(3);
+    let generated = generate_number_string(&mut write_num, 3);
     assert!(
         generated.starts_with(&start),
         "Unexpected start: {}",
@@ -122,18 +126,75 @@ fn test_three_digits() {
 
 /// Run `write_numbers` for n_digits and return the result as String.
 #[cfg(test)]
-fn generate_number_string(n_digits: usize) -> String {
+fn generate_number_string(w: &mut impl WriteNum, n_digits: usize) -> String {
     let mut out = Vec::with_capacity(n_digits * 100);
-    write_numbers(&mut out, n_digits);
+    write_numbers(w, &mut out, n_digits);
     String::from_utf8_lossy(&out).to_string()
 }
 
 /// Write the numbers to a String as `write_numbers` would do.
 #[cfg(test)]
-fn numbers_as_string(n_digits: usize, numbers: &[Num]) -> String {
-    let mut out = Vec::new();
+fn numbers_as_string(w: &mut impl WriteNum, n_digits: usize, numbers: &[Num]) -> String {
+    let mut out = Vec::with_capacity((n_digits+1) * numbers.len() );
     for num in numbers {
-        writeln!(out, "{:0width$}", num, width = n_digits).expect("write");
+        w.write(&mut out, n_digits, *num);
     }
     String::from_utf8_lossy(&out).to_string()
+}
+
+
+trait WriteNum {
+    fn write(&mut self, out: &mut impl Write, n_digits: usize, num: Num);
+}
+
+#[derive(Default)]
+struct WriteNumEasy;
+
+impl WriteNum for WriteNumEasy {
+    fn write(&mut self, out: &mut impl Write, n_digits: usize, num: Num) {
+        writeln!(out, "{:0width$}", num, width = n_digits).expect("write");
+    }
+}
+
+#[test]
+fn test_write_num_easy() {
+    assert_eq!(
+        numbers_as_string(&mut WriteNumEasy::default(), 2, &vec![01, 02, 99]),
+        "01\n\
+         02\n\
+         99\n");
+}
+
+#[test]
+fn test_write_num_reverse() {
+    assert_eq!(
+        numbers_as_string(&mut WriteNumReverse::new(2), 2, &vec![0, 01, 02, 99]),
+        "00\n\
+         10\n\
+         20\n\
+         99\n");
+}
+
+struct WriteNumReverse {
+    buf: [u8; (N_DIGITS+1)],
+}
+
+impl WriteNumReverse {
+    fn new(n_digits: usize) -> Self {
+        let mut buf = [b'0'; (N_DIGITS+1)];
+        buf[n_digits] = b'\n';
+        WriteNumReverse {
+            buf
+        }
+    }
+}
+
+impl WriteNum for WriteNumReverse {
+    fn write(&mut self, out: &mut impl Write, n_digits: usize, mut num: Num) {
+        for i in 0..n_digits {
+            self.buf[i] = b'0' + (num % BASE) as u8;
+            num /= BASE;
+        }
+        out.write_all(&self.buf[..=n_digits]).expect("while writing");
+    }
 }
