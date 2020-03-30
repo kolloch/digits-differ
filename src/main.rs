@@ -1,31 +1,48 @@
-use vob::{Vob};
 use std::io::Write;
+use vob::Vob;
 
 type Num = usize;
+// The number base to use. 10 for decimal.
 const BASE: Num = 10;
+// The number of digits.
 const N_DIGITS: usize = 9;
 
 fn main() {
     let start_time = std::time::SystemTime::now();
 
-    let max = BASE.checked_pow(N_DIGITS as u32).expect("Num type too small") - 1;
-    assert!(max <= usize::max_value() as Num, "usize cannot address max");
-
     assert!(std::env::args().count() <= 2, "too many arguments");
 
-    let file_name = std::env::args().skip(1).next().unwrap_or_else(|| "numbers.out".to_string());
+    let file_name = std::env::args()
+        .skip(1)
+        .next()
+        .unwrap_or_else(|| "numbers.out".to_string());
     eprintln!("Writing to {}", file_name);
 
-    let out = 
-        std::fs::File::create(file_name).expect("while opening file");
+    let out = std::fs::File::create(file_name).expect("while opening file");
     // Buffering makes this max faster.
-    let mut out = std::io::BufWriter::with_capacity(
-        1*1024*1024 /* 1 MB */, out);
+    let mut out = std::io::BufWriter::with_capacity(1 * 1024 * 1024 /* 1 MB */, out);
+
+    let count = write_numbers(&mut out, N_DIGITS);
+
+    out.flush().expect("while flushing file writes");
+    eprintln!(
+        "Finished, took {} ms",
+        start_time.elapsed().expect("elapsed failed").as_millis()
+    );
+    eprintln!("Total count: {}", count);
+}
+
+fn write_numbers(out: &mut impl Write, n_digits: usize) -> usize {
+    let max = BASE
+        .checked_pow(n_digits as u32)
+        .expect("Num type too small")
+        - 1;
+    assert!(max <= usize::max_value() as Num, "usize cannot address max");
 
     // A bit set to keep track of all numbers which are too similar to already
     // chosen numbers (e.g. only differ in one digit).
     // We start out with no numbers being too close.
-    let mut too_similar = Vob::from_elem((max+1) as usize, false);
+    let mut too_similar = Vob::from_elem((max + 1) as usize, false);
 
     let mut current: Num = 0;
     let mut count: usize = 0;
@@ -35,23 +52,24 @@ fn main() {
         count += 1;
         current = next_free as Num;
 
-        writeln!(&mut out, "{:0width$}", current, width = N_DIGITS).expect("write");
+        writeln!(out, "{:0width$}", current, width = n_digits).expect("write");
 
         // Mark all numbers which differ only by one digit as unsuitable.
 
         // exp = 1 for the first digit, 10 for the second, 100 for the third...
         let mut exp: Num = 1;
+        let mut next_exp: Num = 10;
         // Iterate over all digit positions.
-        for _ in 0..N_DIGITS {
+        for _ in 0..n_digits {
             // The current digit at the selected position.
-            // 
+            //
             // Example: current = 3456, digit_post = 2, exp = 100
             //          => current_digit = 4
-            let current_digit: Num = (current / exp % exp) % 10;
+            let current_digit: Num = ((current / exp) % next_exp) % BASE;
             // The curent number with the selected digit set to zero.
             //
-            // Example: 
-            // 
+            // Example:
+            //
             // current = 3456, digit_post = 2, exp = 100
             // => current_level = 3056
             let current_level: Num = current - current_digit * exp;
@@ -62,19 +80,60 @@ fn main() {
                 // The current number with the selected digit changed to
                 // change_to_digit.
                 //
-                // Example: 
+                // Example:
                 //
                 // exp = 100, current_level = 3056, change_to_digit = 9
                 // => with_changed_digit = 3956
-                let with_changed_digit: Num = current_level + change_to_digit*exp;
+                let with_changed_digit: Num = current_level + change_to_digit * exp;
                 too_similar.set(with_changed_digit as usize, true);
             }
-
-            exp *= BASE;
+            exp = next_exp;
+            next_exp *= BASE;
         }
     }
+    count
+}
 
-    out.flush().expect("while flushing file writes");
-    eprintln!("Finished, took {} ms", start_time.elapsed().expect("elapsed failed").as_millis());
-    eprintln!("Total count: {}", count);
+#[test]
+fn test_two_digits() {
+    assert_eq!(
+        generate_number_string(2),
+        numbers_as_string(2, &vec![00, 11, 22, 33, 44, 55, 66, 77, 88, 99])
+    )
+}
+
+#[test]
+fn test_three_digits() {
+    let start = numbers_as_string(
+        3,
+        &vec![000, 011, 022, 033, 044, 055, 066, 077, 088, 099, 101],
+    );
+    let generated = generate_number_string(3);
+    assert!(
+        generated.starts_with(&start),
+        "Unexpected start: {}",
+        generated
+            .lines()
+            .take(11)
+            .flat_map(|s| vec![s, "\n"])
+            .collect::<String>()
+    );
+}
+
+/// Run `write_numbers` for n_digits and return the result as String.
+#[cfg(test)]
+fn generate_number_string(n_digits: usize) -> String {
+    let mut out = Vec::with_capacity(n_digits * 100);
+    write_numbers(&mut out, n_digits);
+    String::from_utf8_lossy(&out).to_string()
+}
+
+/// Write the numbers to a String as `write_numbers` would do.
+#[cfg(test)]
+fn numbers_as_string(n_digits: usize, numbers: &[Num]) -> String {
+    let mut out = Vec::new();
+    for num in numbers {
+        writeln!(out, "{:0width$}", num, width = n_digits).expect("write");
+    }
+    String::from_utf8_lossy(&out).to_string()
 }
