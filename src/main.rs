@@ -40,6 +40,7 @@ fn write_numbers<W: WriteNum>(write_num: &mut W, out: &mut impl Write, n_digits:
         - 1;
     assert!(max <= usize::max_value() as Num, "usize cannot address max");
 
+    // BASE^1, BASE^2, ...:  1, 10, 100, 1000
     let powers: Vec<Num> = {
         let mut powers = Vec::with_capacity(n_digits);
         let mut power = 1;
@@ -52,7 +53,8 @@ fn write_numbers<W: WriteNum>(write_num: &mut W, out: &mut impl Write, n_digits:
 
     // A bit set to keep track of all numbers which are too similar to already
     // chosen numbers (e.g. only differ in one digit).
-    // We start out with no numbers being too close.
+    // We start out with no numbers being too close because we haven't selected
+    // any.
     let mut too_similar = Vob::from_elem((max + 1) as usize, false);
 
     let mut current: Num = 0;
@@ -65,40 +67,42 @@ fn write_numbers<W: WriteNum>(write_num: &mut W, out: &mut impl Write, n_digits:
 
         write_num.write(out, n_digits, current);
 
-        // Mark all numbers which differ only by one digit as unsuitable.
+        mark_variations_as_similar(&powers, &mut too_similar, current);
+    }
+    count
+}
 
-        // Iterate over all digit positions.
-        // digit_factor = 1 for the first digit, 10 for the second, 100 for the third...
-        for digit_factor in &powers {
-            // The current digit at the selected position.
-            //
-            // Example: current = 3456, _digit_pos = 2, digit_factor = 100
-            //          => current_digit = 4
-            let current_digit: Num = (current / digit_factor) % BASE;
-            // The curent number with the selected digit set to zero.
+fn mark_variations_as_similar(powers: &Vec<Num>, too_similar: &mut Vob, current: Num) {
+    // Iterate over all digit positions.
+    // digit_factor = 1 for the first digit, 10 for the second, 100 for the third...
+    for digit_factor in powers {
+        // The current digit at the selected position.
+        //
+        // Example: current = 3456, _digit_pos = 2, digit_factor = 100
+        //          => current_digit = 4
+        let current_digit: Num = (current / digit_factor) % BASE;
+        // The curent number with the selected digit set to zero.
+        //
+        // Example:
+        //
+        // current = 3456, digit_post = 2, digit_factor = 100
+        // => current_level = 3056
+        let current_level: Num = current - current_digit * digit_factor;
+        // Now change the digit in the selected position to all possible
+        // values. Note that this includes the original value since this
+        // also has to be excluded.
+        for change_to_digit in 0..BASE {
+            // The current number with the selected digit changed to
+            // change_to_digit.
             //
             // Example:
             //
-            // current = 3456, digit_post = 2, digit_factor = 100
-            // => current_level = 3056
-            let current_level: Num = current - current_digit * digit_factor;
-            // Now change the digit in the selected position to all possible
-            // values. Note that this includes the original value since this
-            // also has to be excluded.
-            for change_to_digit in 0..BASE {
-                // The current number with the selected digit changed to
-                // change_to_digit.
-                //
-                // Example:
-                //
-                // exp = 100, current_level = 3056, change_to_digit = 9
-                // => with_changed_digit = 3956
-                let with_changed_digit: Num = current_level + change_to_digit * digit_factor;
-                too_similar.set(with_changed_digit as usize, true);
-            }
+            // exp = 100, current_level = 3056, change_to_digit = 9
+            // => with_changed_digit = 3956
+            let with_changed_digit: Num = current_level + change_to_digit * digit_factor;
+            too_similar.set(with_changed_digit as usize, true);
         }
     }
-    count
 }
 
 #[test]
