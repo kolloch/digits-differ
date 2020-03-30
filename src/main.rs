@@ -11,8 +11,16 @@ fn main() {
     let max = BASE.checked_pow(N_DIGITS as u32).expect("Num type too small") - 1;
     assert!(max <= usize::max_value() as Num, "usize cannot address max");
 
-    let stdout = std::io::stdout();
-    let mut out = stdout.lock();
+    assert!(std::env::args().count() <= 2, "too many arguments");
+
+    let file_name = std::env::args().skip(1).next().unwrap_or_else(|| "numbers.out".to_string());
+    eprintln!("Writing to {}", file_name);
+
+    let out = 
+        std::fs::File::create(file_name).expect("while opening file");
+    // Buffering makes this max faster.
+    let mut out = std::io::BufWriter::with_capacity(
+        1*1024*1024 /* 1 MB */, out);
 
     // A bit set to keep track of all numbers which are too similar to already
     // chosen numbers (e.g. only differ in one digit).
@@ -85,6 +93,7 @@ fn main() {
         }
     }
 
-    eprintln!("finished, total count: {}", count);
-    eprintln!("Took {} ms", start_time.elapsed().expect("elapsed failed").as_millis());
+    out.flush().expect("while flushing file writes");
+    eprintln!("Finished, took {} ms", start_time.elapsed().expect("elapsed failed").as_millis());
+    eprintln!("Total count: {}", count);
 }
