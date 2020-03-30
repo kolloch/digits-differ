@@ -57,23 +57,22 @@ fn write_numbers<W: WriteNum>(write_num: &mut W, out: &mut impl Write, n_digits:
 
         // Mark all numbers which differ only by one digit as unsuitable.
 
-        // exp = 1 for the first digit, 10 for the second, 100 for the third...
-        let mut exp: Num = 1;
-        let mut next_exp: Num = 10;
+        // digit_factor = 1 for the first digit, 10 for the second, 100 for the third...
+        let mut digit_factor: Num = 1;
         // Iterate over all digit positions.
-        for _ in 0..n_digits {
+        for _digit_pos in 0..n_digits {
             // The current digit at the selected position.
             //
-            // Example: current = 3456, digit_post = 2, exp = 100
+            // Example: current = 3456, _digit_pos = 2, digit_factor = 100
             //          => current_digit = 4
-            let current_digit: Num = ((current / exp) % next_exp) % BASE;
+            let current_digit: Num = (current / digit_factor) % BASE;
             // The curent number with the selected digit set to zero.
             //
             // Example:
             //
-            // current = 3456, digit_post = 2, exp = 100
+            // current = 3456, digit_post = 2, digit_factor = 100
             // => current_level = 3056
-            let current_level: Num = current - current_digit * exp;
+            let current_level: Num = current - current_digit * digit_factor;
             // Now change the digit in the selected position to all possible
             // values. Note that this includes the original value since this
             // also has to be excluded.
@@ -85,11 +84,10 @@ fn write_numbers<W: WriteNum>(write_num: &mut W, out: &mut impl Write, n_digits:
                 //
                 // exp = 100, current_level = 3056, change_to_digit = 9
                 // => with_changed_digit = 3956
-                let with_changed_digit: Num = current_level + change_to_digit * exp;
+                let with_changed_digit: Num = current_level + change_to_digit * digit_factor;
                 too_similar.set(with_changed_digit as usize, true);
             }
-            exp = next_exp;
-            next_exp *= BASE;
+            digit_factor *= BASE;
         }
     }
     count
