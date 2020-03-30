@@ -8,7 +8,6 @@ edition = "2018"
 
 [dependencies]
 vob = "2.0"
-itoa = "0.4"
 
 [profile.dev]
 panic = "abort"
